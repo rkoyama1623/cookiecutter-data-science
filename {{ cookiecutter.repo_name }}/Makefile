@@ -10,10 +10,17 @@ PROFILE = {{ cookiecutter.aws_profile }}
 PROJECT_NAME = {{ cookiecutter.repo_name }}
 PYTHON_INTERPRETER = {{ cookiecutter.python_interpreter }}
 
+SHELL:=/bin/bash
 ifeq (,$(shell which conda))
 HAS_CONDA=False
 else
 HAS_CONDA=True
+endif
+
+ifeq (,$(shell which pyenv))
+HAS_PYENV=False
+else
+HAS_PYENV=True
 endif
 
 #################################################################################
@@ -56,21 +63,39 @@ endif
 
 ## Set up python interpreter environment
 create_environment:
-ifeq (True,$(HAS_CONDA))
-		@echo ">>> Detected conda, creating conda environment."
+ifeq (True,$(HAS_CONDA))  # Start of HAS_CONDA if statement
+	@echo ">>> Detected conda, creating conda environment."
 ifeq (3,$(findstring 3,$(PYTHON_INTERPRETER)))
 	conda create --name $(PROJECT_NAME) python=3
 else
 	conda create --name $(PROJECT_NAME) python=2.7
 endif
-		@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
+	@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
+else  # Start of HAS_CONDA else statement
+
+ifeq (True,$(HAS_PYENV))  # Start of HAS_PYENV if statement
+	@echo ">>> Detected pyenv, creating pyenv environment."
+ifeq (3,$(findstring 3,$(PYTHON_INTERPRETER)))
+	@export PYTHON_VERSION=$$(pyenv install --list | grep --extended-regexp "^\\s*3\\.([0-9]*)\\.([0-9]*)$$" | tail -1); \
+	echo "Install python version $$PYTHON_VERSION"; \
+	CONFIGURE_OPTS="--enable-shared" pyenv install $$PYTHON_VERSION; \
+	pyenv virtualenv $$PYTHON_VERSION $(PROJECT_NAME); \
+	pyenv local $(PROJECT_NAME)
 else
+	@export PYTHON_VERSION=$$(pyenv install --list | grep --extended-regexp "^\\s*2\\.([0-9]*)\\.([0-9]*)$$" | tail -1); \
+	echo "Install python version $$PYTHON_VERSION"; \
+	CONFIGURE_OPTS="--enable-shared" pyenv install $$PYTHON_VERSION; \
+	pyenv virtualenv $$PYTHON_VERSION $(PROJECT_NAME); \
+	pyenv local $(PROJECT_NAME)
+endif
+else  # Start of HAS_PYENV else statement 
 	$(PYTHON_INTERPRETER) -m pip install -q virtualenv virtualenvwrapper
 	@echo ">>> Installing virtualenvwrapper if not already installed.\nMake sure the following lines are in shell startup file\n\
 	export WORKON_HOME=$$HOME/.virtualenvs\nexport PROJECT_HOME=$$HOME/Devel\nsource /usr/local/bin/virtualenvwrapper.sh\n"
 	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER)"
 	@echo ">>> New virtualenv created. Activate with:\nworkon $(PROJECT_NAME)"
-endif
+endif  # End of HAS_PYENV if statement
+endif  # End of HAS_CONDA else statement
 
 ## Test python environment is setup correctly
 test_environment:
